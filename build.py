@@ -16,7 +16,7 @@ CONFIG = {
     "name": "NOCASHFLOW",
     "id": "NC-0x2A",
     "tagline": "ships first, reads the docs later",
-    "role": "NETRUNNER · FREELANCE · MOSTLY HARMLESS",
+    "role": "NETRUNNER · NOCORPO · UNLICENSED",
 
     "bounty": [  # right-hand wanted panel
         ("WANTED FOR", "crimes against prod"),
