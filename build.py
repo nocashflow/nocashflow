@@ -2,7 +2,7 @@
 NOCASHFLOW // netrunner bounty poster — GitHub profile README generator.
 
 Edit CONFIG, then run:   python build.py
-Writes README.md + assets/header.svg + assets/seismograph.svg.
+Writes README.md + assets/header.svg + assets/braindance.svg.
 (The old geological-survey version lives in archive/geological-survey/.)
 """
 import math
@@ -34,18 +34,20 @@ CONFIG = {
 
     "ticker": [
         "I'LL TAKE YOU TO THE MOON",
-        "DEPLOYS ON FRIDAYS",
-        "SHIPS FIRST · READS DOCS LATER",
-        "47 UNFINISHED REPOS AND COUNTING",
-        "CHROME: OPTIONAL · COMMITS: MANDATORY",
+        "WE'RE HAVING A MOMENT HERE",
+        "PLATINUM PLAN WON'T SAVE THIS BUILD",
+        "AIN'T WORTH IT, CHOOM · DEPLOYING ANYWAY",
+        "MY CODE? JUST A RUDIMENTARY IMPLANT",
+        "CAPRI'S IN THE TERMINAL · WHO GAVE HER SUDO ACCESS",
+        "NO HAPPY ENDINGS IN NIGHT CITY",
     ],
 
-    # Spikes on the seismograph. magnitude 1–9 sets spike height.
+    # Clues on the braindance timeline. magnitude 1–9 sets the audio burst.
     # Keep values under ~22 characters (the last one can go to ~28).
     "readings": [
-        {"label": "currently learning", "value": "whatever breaks next", "magnitude": 5.1},
+        {"label": "currently learning", "value": "how not to flatline prod", "magnitude": 5.1},
         {"label": "open to", "value": "positive cash flow", "magnitude": 7.4},
-        {"label": "ask me about", "value": "my 47 unfinished repos", "magnitude": 4.3},
+        {"label": "ask me about", "value": "how i fumbled the moon", "magnitude": 4.3},
         {"label": "fun fact", "value": "my code works. no idea why", "magnitude": 6.2},
     ],
 }
@@ -200,77 +202,146 @@ def build_header(c):
 </svg>'''
 
 
-def build_seismo(c):
-    H, base = 236, 166
-    readings = c["readings"][:5]
-    xs = [104 + i * (W - 304) / max(1, len(readings) - 1) for i in range(len(readings))]
-    rnd = random.Random(3)
-    trace = []
-    for x10 in range(30 * 2, (W - 24) * 2):
-        x = x10 / 2
-        y = base + rnd.uniform(-1.6, 1.6)
-        for xi, r in zip(xs, readings):
-            dx = x - xi
-            if 0 <= dx < 70:
-                amp = r["magnitude"] * 6.2 * math.exp(-dx / 14)
-                y += amp * math.sin(dx * 1.15)
-            elif -6 < dx < 0:
-                y += rnd.uniform(-2, 2)
-        trace.append((x, y))
-    cum, total = [0.0], 0.0
-    for a, b in zip(trace, trace[1:]):
-        total += math.dist(a, b)
-        cum.append(total)
-    dur, start = 5.0, 0.3
+def build_braindance(c):
+    """Braindance editor timeline: visual / audio / thermal tracks, readings pinned as clues,
+    a playhead scrubbing toward a moon at the end of the recording."""
+    H = 236
+    readings = c["readings"][:4]
+    rnd = random.Random(2077)
+    tx0, tx1 = 104, 690                      # track area
+    tracks = [("VISUAL", YEL, 92), ("AUDIO", CYAN, 118), ("THERMAL", PINK, 144)]
+    th = 22
+    cx = [tx0 + 40 + i * (tx1 - tx0 - 170) / max(1, len(readings) - 1) for i in range(len(readings))]
 
-    def t_at(x):
-        idx = min(range(len(trace)), key=lambda k: abs(trace[k][0] - x))
-        return start + dur * cum[idx] / total
+    # time ruler
+    ruler = ""
+    for k, x in enumerate(range(tx0, tx1 + 1, 10)):
+        big = k % 10 == 0
+        ruler += f'<line x1="{x}" y1="{86 - (6 if big else 3)}" x2="{x}" y2="86" stroke="#fff6ea" stroke-opacity="{.5 if big else .2}"/>'
+        if big:
+            ruler += (f'<text x="{x + 3}" y="79" font-family="{MONO}" font-size="7.5" fill="#fff6ea" opacity=".45">'
+                      f'00:{k // 10 * 12:02d}:00</text>')
 
-    grid = "".join(f'<line x1="{x}" y1="40" x2="{x}" y2="{H-14}" stroke="#fcee0a" stroke-opacity="{.13 if x % 50 == 30 else .04}"/>'
-                   for x in range(30, W - 20, 10))
-    grid += "".join(f'<line x1="30" y1="{y}" x2="{W-24}" y2="{y}" stroke="#fcee0a" stroke-opacity="{.13 if (y-40) % 40 == 0 else .04}"/>'
-                    for y in range(40, H - 13, 10))
+    # VISUAL: film-strip frames, brighter around clues
+    vis, x = "", tx0
+    while x < tx1:
+        w = 14
+        near = min(abs(x - p) for p in cx)
+        op = .85 if near < 18 else rnd.uniform(.12, .38)
+        vis += f'<rect x="{x}" y="{tracks[0][2] + 3}" width="{w - 2}" height="{th - 6}" fill="{YEL}" opacity="{op:.2f}"/>'
+        x += w
 
-    labels = ""
-    for k, (xi, r) in enumerate(zip(xs, readings)):
-        peak = base - r["magnitude"] * 6.2 * 0.9 - 6
-        ly = 82
-        last = k == len(xs) - 1
-        tx, anc = xi - 8, "start"
-        labels += (f'<g class="fade" style="animation-delay:{t_at(xi + 8):.2f}s">'
-                   f'<line x1="{xi+1}" y1="{max(peak, ly + 6):.0f}" x2="{xi+1}" y2="{ly + 6}" stroke="#ff2e88" stroke-width=".9" stroke-dasharray="2 2"/>'
-                   f'<circle cx="{xi+1}" cy="{ly+6}" r="2.2" fill="#ff2e88"/>'
-                   f'<text x="{tx}" y="{ly - 22}" text-anchor="{anc}" font-family="{MONO}" font-size="9" fill="#3ef0ff" letter-spacing=".9">'
-                   f'M{r["magnitude"]:.1f} · {escape(r["label"]).upper()}</text>'
-                   f'<text x="{tx}" y="{ly - 5}" text-anchor="{anc}" font-family="{SERIF}" font-size="15" font-style="italic" fill="#fff6ea">'
-                   f'{escape(r["value"])}</text></g>')
+    # AUDIO: waveform bars with bursts at clues (height from magnitude)
+    aud, ay = "", tracks[1][2] + th / 2
+    for x in range(tx0, tx1, 3):
+        h = rnd.uniform(1, 5)
+        for p, r in zip(cx, readings):
+            d = abs(x - p)
+            if d < 26:
+                h += r["magnitude"] * 1.3 * (1 - d / 26) * rnd.uniform(.6, 1)
+        h = min(h, th / 2 - 1)
+        aud += f'<line x1="{x}" y1="{ay - h:.1f}" x2="{x}" y2="{ay + h:.1f}"/>'
 
-    return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" role="img" aria-label="Seismograph readings">
+    # THERMAL: heat gradient, hot spots at clues
+    stops = []
+    for i in range(41):
+        f = i / 40
+        x = tx0 + f * (tx1 - tx0)
+        heat = .18 + rnd.uniform(0, .12) + sum(max(0, 1 - abs(x - p) / 40) for p in cx)
+        heat = min(heat, 1)
+        col = "#2a0f2e" if heat < .3 else ("#7a1450" if heat < .5 else (PINK if heat < .8 else "#ffb35a"))
+        stops.append(f'<stop offset="{f:.3f}" stop-color="{col}"/>')
+
+    # clues: marker through all tracks + label (alternating above / below)
+    clues = ""
+    for i, (p, r) in enumerate(zip(cx, readings)):
+        top = i % 2 == 0
+        ly = 40 if top else 196
+        tx, anc = p + 6, "start"
+        y_from = 86 if top else 166
+        y_to = 58 if top else 182
+        clues += (
+            f'<line x1="{p:.0f}" y1="88" x2="{p:.0f}" y2="168" stroke="#fff6ea" stroke-width="1" stroke-opacity=".75"/>'
+            f'<rect class="pulse" x="{p - 11:.0f}" y="{tracks[i % 3][2] - 1}" width="22" height="{th + 2}" fill="none" '
+            f'stroke="{YEL}" stroke-width="1.2" style="animation-delay:{i * .5:.1f}s"/>'
+            f'<line x1="{p:.0f}" y1="{y_from}" x2="{p:.0f}" y2="{y_to}" stroke="#fff6ea" stroke-opacity=".5" stroke-dasharray="2 2"/>'
+            f'<path d="M{p:.0f},{y_to - 4} l4,4 l-4,4 l-4,-4 z" fill="{YEL}"/>'
+            f'<text x="{tx:.0f}" y="{ly}" text-anchor="{anc}" font-family="{MONO}" font-size="8.5" fill="{CYAN}" letter-spacing="1.3">'
+            f'CLUE {i + 1:02d} · {escape(r["label"]).upper()}</text>'
+            f'<text x="{tx:.0f}" y="{ly + 17}" text-anchor="{anc}" font-family="{MONO}" font-size="13" font-weight="700" fill="#fff6ea">'
+            f'{escape(r["value"])}</text>')
+
+    # track labels
+    tl = "".join(
+        f'<rect x="16" y="{y}" width="{tx0 - 24}" height="{th}" fill="#16111f"/>'
+        f'<rect x="16" y="{y}" width="3" height="{th}" fill="{col}"/>'
+        f'<text x="26" y="{y + 14.5}" font-family="{MONO}" font-size="9" fill="{col}" letter-spacing="1.4">{name}</text>'
+        for name, col, y in tracks)
+
+    # the moon at the end of the recording, two tiny anonymous figures sitting on it
+    mx, my, mr = 764, 128, 46
+    craters = "".join(f'<circle cx="{mx + dx}" cy="{my + dy}" r="{r}" fill="#cfc8b8" opacity=".55"/>'
+                      for dx, dy, r in [(-14, -10, 7), (12, 8, 9), (-6, 20, 4), (20, -18, 3.5), (-24, 10, 3)])
+    fig = lambda x, y, s: (
+        f'<g transform="translate({x} {y}) scale({s})" fill="{INK}">'
+        f'<circle cx="0" cy="-11" r="2.6"/><path d="M-2.4,-8 h4.8 l.8,7 h-6.4 z"/>'
+        f'<path d="M-3.2,-1.2 h7 l1.6,4.6 h-2.2 l-1.2,-2.6 h-5.2 z"/></g>')
+    moon = (f'<circle cx="{mx}" cy="{my}" r="{mr + 14}" fill="url(#halo)"/>'
+            f'<circle cx="{mx}" cy="{my}" r="{mr}" fill="#efe9da"/>{craters}'
+            f'{fig(mx - 6, my - mr + 2, 1)}{fig(mx + 6, my - mr + 2.5, .95)}'
+            f'<text x="{mx}" y="{my - mr - 24}" text-anchor="middle" font-family="{MONO}" font-size="8" fill="#fff6ea" '
+            f'opacity=".55" letter-spacing="1.6">END OF RECORDING</text>')
+
+    stars = "".join(f'<circle cx="{rnd.uniform(706, 830):.0f}" cy="{rnd.uniform(36, 210):.0f}" r="{rnd.choice([.6, .8, 1])}" '
+                    f'fill="#fff6ea" class="tw" style="animation-delay:{rnd.uniform(0, 3):.1f}s"/>' for _ in range(22))
+
+    scrub = tx1 - tx0
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" role="img" aria-label="Braindance editor timeline">
 <style>
-.tr{{stroke-dasharray:{total:.0f};stroke-dashoffset:{total:.0f};animation:tr {dur}s linear {start}s forwards}}
-@keyframes tr{{to{{stroke-dashoffset:0}}}}
-.fade{{opacity:0;animation:fade .7s ease-out forwards}}
-@keyframes fade{{from{{opacity:0;transform:translateY(4px)}}to{{opacity:1;transform:none}}}}
+.ph{{animation:ph 9s linear infinite}}
+@keyframes ph{{from{{transform:translateX(0)}}to{{transform:translateX({scrub}px)}}}}
+.pulse{{animation:pulse 2s ease-in-out infinite}}
+@keyframes pulse{{0%,100%{{opacity:.25}}50%{{opacity:1}}}}
 .rec{{animation:rec 1.2s steps(2) infinite}}
 @keyframes rec{{50%{{opacity:.15}}}}
-@media (prefers-reduced-motion:reduce){{*{{animation:none!important}}.tr{{stroke-dashoffset:0}}.fade{{opacity:1}}}}
+.tw{{animation:tw 3s ease-in-out infinite}}
+@keyframes tw{{0%,100%{{opacity:.2}}50%{{opacity:.9}}}}
+.wave{{animation:wave 1.6s ease-in-out infinite alternate;transform-origin:0 {ay}px}}
+@keyframes wave{{to{{transform:scaleY(.7)}}}}
+@media (prefers-reduced-motion:reduce){{*{{animation:none!important}}}}
 </style>
-<defs><clipPath id="f"><rect width="{W}" height="{H}" rx="14"/></clipPath>
-<linearGradient id="paper" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0d0b14"/><stop offset="1" stop-color="#16101f"/></linearGradient><filter id="neon" x="-5%" y="-30%" width="110%" height="160%"><feGaussianBlur stdDeviation="2.2" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter><pattern id="scan" width="4" height="4" patternUnits="userSpaceOnUse"><rect width="4" height="1" fill="#000" opacity=".35"/></pattern></defs>
+<defs>
+<clipPath id="f"><path d="M0,0 H{W - 22} L{W},22 V{H} H22 L0,{H - 22} Z"/></clipPath>
+<linearGradient id="heat" x1="{tx0}" y1="0" x2="{tx1}" y2="0" gradientUnits="userSpaceOnUse">{"".join(stops)}</linearGradient>
+<radialGradient id="halo"><stop offset=".7" stop-color="#fff6ea" stop-opacity=".18"/><stop offset="1" stop-color="#fff6ea" stop-opacity="0"/></radialGradient>
+<pattern id="scan" width="4" height="3" patternUnits="userSpaceOnUse"><rect width="4" height="1" fill="#000" opacity=".3"/></pattern>
+</defs>
 <g clip-path="url(#f)">
-<rect width="{W}" height="{H}" fill="url(#paper)"/>
-{grid}
-<rect width="{W}" height="30" fill="#fcee0a"/><path d="M{W-150},30 l14,10 H{W} V30 Z" fill="#fcee0a"/>
-<circle class="rec" cx="22" cy="15" r="4" fill="#ff2e88"/>
-<text x="34" y="19" font-family="{MONO}" font-size="10" font-weight="700" fill="#0d0b14" letter-spacing="2.4">SEISMOGRAPH · STATION @{escape(c['username']).upper()} · LIVE READING</text>
-<text x="{W-16}" y="19" text-anchor="end" font-family="{MONO}" font-size="10" fill="#0d0b14" opacity=".7" font-weight="700" letter-spacing="2">SCALE: VIBES</text>
-<polyline class="tr" points="{pts(trace)}" fill="none" stroke="#fcee0a" stroke-width="1.4" stroke-linejoin="round" filter="url(#neon)"/>
-<rect y="30" width="{W}" height="{H}" fill="url(#scan)"/>
-{labels}
+<rect width="{W}" height="{H}" fill="{BG}"/>
+<rect x="698" y="28" width="{W - 698}" height="{H - 28}" fill="#0f0b1a"/>
+{stars}
+<rect width="{W}" height="28" fill="#16111f"/>
+<rect y="27" width="{W}" height="1" fill="{CYAN}" opacity=".5"/>
+<circle class="rec" cx="20" cy="14" r="4" fill="{PINK}"/>
+<text x="32" y="18" font-family="{MONO}" font-size="10" fill="{YEL}" letter-spacing="2">BD EDITOR · REC_{escape(c['username']).upper()}.bd</text>
+<text x="{W - 16}" y="18" text-anchor="end" font-family="{MONO}" font-size="10" fill="#fff6ea" opacity=".6" letter-spacing="2">EDIT MODE · LAYERS 3/3 · 4 CLUES FOUND</text>
+{ruler}
+{tl}
+<rect x="{tx0}" y="{tracks[0][2]}" width="{tx1 - tx0}" height="{th}" fill="#16111f"/>{vis}
+<rect x="{tx0}" y="{tracks[1][2]}" width="{tx1 - tx0}" height="{th}" fill="#16111f"/>
+<g class="wave" stroke="{CYAN}" stroke-width="1.6" stroke-linecap="round">{aud}</g>
+<rect x="{tx0}" y="{tracks[2][2]}" width="{tx1 - tx0}" height="{th}" fill="url(#heat)"/>
+{clues}
+<g class="ph">
+<line x1="{tx0}" y1="84" x2="{tx0}" y2="168" stroke="{YEL}" stroke-width="1.6"/>
+<path d="M{tx0 - 5},80 h10 v4 l-5,5 l-5,-5 z" fill="{YEL}"/>
 </g>
+{moon}
+<text x="16" y="{H - 10}" font-family="{MONO}" font-size="9" fill="#fff6ea" opacity=".45" letter-spacing="1.6">◂◂  ▶  ▸▸   SPEED 1.0x   ·   SCAN MODE: ON</text>
+<rect width="{W}" height="{H}" fill="url(#scan)"/>
+</g>
+<path d="M0,0 H{W - 22} L{W},22 V{H} H22 L0,{H - 22} Z" fill="none" stroke="{CYAN}" stroke-opacity=".45" stroke-width="2"/>
 </svg>'''
-
 
 
 def build_readme(c):
@@ -280,7 +351,7 @@ def build_readme(c):
 </p>
 
 <p align="center">
-  <img src="./assets/seismograph.svg" width="100%" alt="Seismograph readings: {readings}">
+  <img src="./assets/braindance.svg" width="100%" alt="Braindance editor timeline. Clues: {readings}">
 </p>
 
 <p align="center"><sub><code>// END OF TRANSMISSION</code> · jack into the repos below ↓</sub></p>
@@ -291,6 +362,6 @@ if __name__ == "__main__":
     out = Path(__file__).parent
     (out / "assets").mkdir(exist_ok=True)
     (out / "assets" / "header.svg").write_text(build_header(CONFIG), encoding="utf-8")
-    (out / "assets" / "seismograph.svg").write_text(build_seismo(CONFIG), encoding="utf-8")
+    (out / "assets" / "braindance.svg").write_text(build_braindance(CONFIG), encoding="utf-8")
     (out / "README.md").write_text(build_readme(CONFIG), encoding="utf-8")
-    print("wrote README.md, assets/header.svg, assets/seismograph.svg")
+    print("wrote README.md, assets/header.svg, assets/braindance.svg")

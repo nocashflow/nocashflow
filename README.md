@@ -3,7 +3,7 @@
 </p>
 
 <p align="center">
-  <img src="./assets/seismograph.svg" width="100%" alt="Seismograph readings: currently learning: whatever breaks next; open to: positive cash flow; ask me about: my 47 unfinished repos; fun fact: my code works. no idea why">
+  <img src="./assets/braindance.svg" width="100%" alt="Braindance editor timeline. Clues: currently learning: how not to flatline prod; open to: positive cash flow; ask me about: how i fumbled the moon; fun fact: my code works. no idea why">
 </p>
 
 <p align="center"><sub><code>// END OF TRANSMISSION</code> · jack into the repos below ↓</sub></p>
