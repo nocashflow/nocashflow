@@ -5,7 +5,12 @@ Edit CONFIG below, then run:   python build.py
 It writes README.md + assets/strata.svg + assets/seismograph.svg.
 Copy all three into your <username>/<username> repo and push.
 """
+import datetime
+import json
 import math
+import os
+import subprocess
+import urllib.request
 import random
 from html import escape
 from pathlib import Path
@@ -392,17 +397,13 @@ def build_readme(c):
         f'<a href="{url}"><img src="https://img.shields.io/badge/{label.replace("-", "--").replace(" ", "_")}-2a1d12?style=for-the-badge&logo={logo}&logoColor=f1dcc2&labelColor=8b4a2b" alt="{label}"></a>'
         for label, url, logo in c["contact"])
     stats = ""
-    if c["show_stats"]:
-        theme = "bg_color=2a1d12&title_color=ffb35a&text_color=f1dcc2&icon_color=c38d50&border_color=8b4a2b&hide_border=false"
-        stats = f'''
-<details>
-<summary><b>Lab results</b> — core samples sent off for analysis</summary>
+    if c["show_stats"] and (Path(__file__).parent / "assets" / "lab.svg").exists():
+        stats = '''
 <br>
+
 <p align="center">
-  <img height="165" src="https://github-readme-stats.vercel.app/api?username={u}&show_icons=true&{theme}" alt="stats">
-  <img height="165" src="https://github-readme-stats.vercel.app/api/top-langs/?username={u}&layout=compact&{theme}" alt="languages">
+  <img src="./assets/lab.svg" width="100%" alt="Lab report: GitHub contributions, repos, stars, followers and language mix. Refreshed daily by a GitHub Action.">
 </p>
-</details>
 '''
     return f'''<p align="center">
   <img src="./assets/strata.svg" width="100%" alt="A geological cross-section of {escape(c['name'])}: each rock layer is a year of work, each fossil a project, a drill bores down to the core.">
@@ -434,10 +435,115 @@ def build_readme(c):
 '''
 
 
+def _token():
+    tok = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if tok:
+        return tok
+    try:
+        return subprocess.run(["gh", "auth", "token"], capture_output=True, text=True, timeout=15).stdout.strip() or None
+    except Exception:
+        return None
+
+
+def fetch_stats(username):
+    """Public numbers for the lab card, via GitHub GraphQL. Returns None if offline / no token."""
+    tok = _token()
+    if not tok:
+        return None
+    q = """query($u:String!){user(login:$u){
+      followers{totalCount}
+      contributionsCollection{contributionCalendar{totalContributions}}
+      repositories(ownerAffiliations:OWNER,isFork:false,privacy:PUBLIC,first:100){
+        totalCount nodes{stargazerCount languages(first:10){edges{size node{name color}}}}}}}"""
+    req = urllib.request.Request(
+        "https://api.github.com/graphql",
+        data=json.dumps({"query": q, "variables": {"u": username}}).encode(),
+        headers={"Authorization": f"bearer {tok}", "User-Agent": "strata-readme"})
+    try:
+        data = json.load(urllib.request.urlopen(req, timeout=30))["data"]["user"]
+    except Exception as e:
+        print("stats fetch failed:", e)
+        return None
+    langs = {}
+    for r in data["repositories"]["nodes"]:
+        for e in r["languages"]["edges"]:
+            n = e["node"]["name"]
+            langs.setdefault(n, [0, e["node"]["color"] or "#8b8b8b"])[0] += e["size"]
+    return {
+        "contrib": data["contributionsCollection"]["contributionCalendar"]["totalContributions"],
+        "repos": data["repositories"]["totalCount"],
+        "stars": sum(r["stargazerCount"] for r in data["repositories"]["nodes"]),
+        "followers": data["followers"]["totalCount"],
+        "langs": sorted(langs.items(), key=lambda kv: -kv[1][0]),
+    }
+
+
+def build_lab(c, s):
+    H = 236
+    year = datetime.date.today().year
+    cells = [(f"{s['contrib']:,}", f"contributions · {year}"), (str(s["repos"]), "public repos"),
+             (str(s["stars"]), "stars collected"), (str(s["followers"]), "followers")]
+    nums = ""
+    for i, (v, lab) in enumerate(cells):
+        x = 40 + i * 200
+        nums += (f'<g class="fade" style="animation-delay:{.2 + i * .15:.2f}s">'
+                 f'<text x="{x}" y="102" font-family="{SERIF}" font-size="40" fill="#ffb35a">{escape(v)}</text>'
+                 f'<text x="{x + 2}" y="124" font-family="{MONO}" font-size="10" fill="#f1dcc2" opacity=".7" letter-spacing="1.6">{escape(lab).upper()}</text></g>')
+        if i:
+            nums += f'<line x1="{x - 22}" y1="66" x2="{x - 22}" y2="126" stroke="#f1dcc2" stroke-opacity=".12"/>'
+
+    top = s["langs"][:6]
+    other = sum(v[0] for _, v in s["langs"][6:])
+    if other:
+        top.append(("Other", [other, "#6b5a4a"]))
+    total = sum(v[0] for _, v in top) or 1
+    bx, bw, by = 40, W - 80, 162
+    bar, legend, x = "", "", bx
+    lx = bx
+    for i, (name, (size, color)) in enumerate(top):
+        w = bw * size / total
+        bar += f'<rect x="{x:.1f}" y="{by}" width="{max(w - 2, 1):.1f}" height="12" fill="{color}"/>'
+        x += w
+        pct = f"{100 * size / total:.1f}%"
+        label = f"{name} {pct}"
+        legend += (f'<circle cx="{lx + 4}" cy="{by + 37}" r="4" fill="{color}"/>'
+                   f'<text x="{lx + 13}" y="{by + 41}" font-family="{MONO}" font-size="10.5" fill="#f1dcc2">{escape(name)} '
+                   f'<tspan opacity=".55">{pct}</tspan></text>')
+        lx += 28 + len(label) * 6.6
+    if not top:
+        bar = f'<text x="{bx}" y="{by + 10}" font-family="{MONO}" font-size="11" fill="#f1dcc2" opacity=".6">no samples yet. go push something.</text>'
+
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" role="img" aria-label="Lab report: GitHub stats for @{escape(c['username'])}">
+<style>
+.fade{{opacity:0;animation:fade .7s ease-out forwards}}
+@keyframes fade{{from{{opacity:0;transform:translateY(5px)}}to{{opacity:1;transform:none}}}}
+.grow{{transform-origin:{bx}px 0;transform:scaleX(0);animation:grow 1.4s cubic-bezier(.2,.7,.2,1) .6s forwards}}
+@keyframes grow{{to{{transform:scaleX(1)}}}}
+@media (prefers-reduced-motion:reduce){{*{{animation:none!important}}.fade{{opacity:1}}.grow{{transform:none}}}}
+</style>
+<defs><clipPath id="f"><rect width="{W}" height="{H}" rx="14"/></clipPath>
+<clipPath id="bar"><rect x="{bx}" y="{by}" width="{bw}" height="12" rx="6"/></clipPath></defs>
+<g clip-path="url(#f)">
+<rect width="{W}" height="{H}" fill="#1f1610"/>
+<rect width="{W}" height="30" fill="#2e2018"/>
+<text x="20" y="19" font-family="{MONO}" font-size="10" fill="#f1dcc2" letter-spacing="2.4">LAB REPORT · CORE SAMPLE ANALYSIS · @{escape(c['username']).upper()}</text>
+<text x="{W - 20}" y="19" text-anchor="end" font-family="{MONO}" font-size="10" fill="#f1dcc2" opacity=".55" letter-spacing="2">ANALYSED {datetime.date.today().isoformat()}</text>
+{nums}
+<text x="{bx}" y="{by - 12}" font-family="{MONO}" font-size="10" fill="#f1dcc2" opacity=".7" letter-spacing="2.4">MINERAL COMPOSITION</text>
+<g clip-path="url(#bar)"><rect x="{bx}" y="{by}" width="{bw}" height="12" fill="#3a2a1f"/><g class="grow">{bar}</g></g>
+<g class="fade" style="animation-delay:1.4s">{legend}</g>
+</g>
+</svg>'''
+
+
 if __name__ == "__main__":
     out = Path(__file__).parent
     (out / "assets").mkdir(exist_ok=True)
     (out / "assets" / "strata.svg").write_text(build_strata(CONFIG), encoding="utf-8")
     (out / "assets" / "seismograph.svg").write_text(build_seismo(CONFIG), encoding="utf-8")
+    if CONFIG["show_stats"]:
+        stats = fetch_stats(CONFIG["username"])
+        if stats:  # if the fetch fails, keep the last good lab.svg
+            (out / "assets" / "lab.svg").write_text(build_lab(CONFIG, stats), encoding="utf-8")
     (out / "README.md").write_text(build_readme(CONFIG), encoding="utf-8")
-    print("wrote README.md, assets/strata.svg, assets/seismograph.svg")
+    print("wrote README.md and assets/")

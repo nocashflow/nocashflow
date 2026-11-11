@@ -25,13 +25,10 @@
 <a href="https://github.com/nocashflow"><img src="https://img.shields.io/badge/Follow_on_GitHub-2a1d12?style=for-the-badge&logo=github&logoColor=f1dcc2&labelColor=8b4a2b" alt="Follow on GitHub"></a> <a href="https://github.com/nocashflow/context-meter"><img src="https://img.shields.io/badge/context--meter-2a1d12?style=for-the-badge&logo=anthropic&logoColor=f1dcc2&labelColor=8b4a2b" alt="context-meter"></a>
 </p>
 
-<details>
-<summary><b>Lab results</b> — core samples sent off for analysis</summary>
 <br>
+
 <p align="center">
-  <img height="165" src="https://github-readme-stats.vercel.app/api?username=nocashflow&show_icons=true&bg_color=2a1d12&title_color=ffb35a&text_color=f1dcc2&icon_color=c38d50&border_color=8b4a2b&hide_border=false" alt="stats">
-  <img height="165" src="https://github-readme-stats.vercel.app/api/top-langs/?username=nocashflow&layout=compact&bg_color=2a1d12&title_color=ffb35a&text_color=f1dcc2&icon_color=c38d50&border_color=8b4a2b&hide_border=false" alt="languages">
+  <img src="./assets/lab.svg" width="100%" alt="Lab report: GitHub contributions, repos, stars, followers and language mix. Refreshed daily by a GitHub Action.">
 </p>
-</details>
 
 <p align="right"><sub>Survey ends here. Everything below this line is unexplored.</sub></p>
