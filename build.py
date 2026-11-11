@@ -203,144 +203,114 @@ def build_header(c):
 
 
 def build_braindance(c):
-    """Braindance editor timeline: visual / audio / thermal tracks, readings pinned as clues,
-    a playhead scrubbing toward a moon at the end of the recording."""
+    """Braindance recording: one thin vitals trace that blips at each clue
+    and climbs into the moon, where two tiny figures sit."""
     H = 236
     readings = c["readings"][:4]
     rnd = random.Random(2077)
-    tx0, tx1 = 104, 690                      # track area
-    tracks = [("VISUAL", YEL, 92), ("AUDIO", CYAN, 118), ("THERMAL", PINK, 144)]
-    th = 22
-    cx = [tx0 + 40 + i * (tx1 - tx0 - 170) / max(1, len(readings) - 1) for i in range(len(readings))]
+    y0 = 126                                  # trace baseline
+    mx, my, mr = 742, 128, 58                 # the moon
+    cx = [86 + i * 122 for i in range(len(readings))]
 
-    # time ruler
-    ruler = ""
-    for k, x in enumerate(range(tx0, tx1 + 1, 10)):
-        big = k % 10 == 0
-        ruler += f'<line x1="{x}" y1="{86 - (6 if big else 3)}" x2="{x}" y2="86" stroke="#fff6ea" stroke-opacity="{.5 if big else .2}"/>'
-        if big:
-            ruler += (f'<text x="{x + 3}" y="79" font-family="{MONO}" font-size="7.5" fill="#fff6ea" opacity=".45">'
-                      f'00:{k // 10 * 12:02d}:00</text>')
+    # build the trace as one polyline: flat, PQRST blip per clue, then a curve up into the moon
+    trace = [(24, y0)]
+    peaks = []
+    for p, r in zip(cx, readings):
+        amp = 14 + r["magnitude"] * 3.2
+        for dx, dy in [(-16, 0), (-10, -4), (-6, 0), (-2, 6), (2, -amp), (6, 12), (10, 0), (18, -5), (24, 0)]:
+            trace.append((p + dx, y0 + dy))
+        peaks.append((p + 2, y0 - amp))
+    trace.append((600, y0))
+    ex, ey = mx - mr * math.cos(math.radians(22)), my + mr * math.sin(math.radians(22))
+    p0, p1, p2, p3 = (600, y0), (636, y0), (648, ey), (ex, ey)
+    for k in range(1, 21):
+        t = k / 20
+        trace.append(tuple((1 - t) ** 3 * a + 3 * (1 - t) ** 2 * t * b + 3 * (1 - t) * t ** 2 * cc + t ** 3 * d
+                           for a, b, cc, d in zip(p0, p1, p2, p3)))
+    L = sum(math.dist(a, b) for a, b in zip(trace, trace[1:]))
+    tp = pts(trace)
 
-    # VISUAL: film-strip frames, brighter around clues
-    vis, x = "", tx0
-    while x < tx1:
-        w = 14
-        near = min(abs(x - p) for p in cx)
-        op = .85 if near < 18 else rnd.uniform(.12, .38)
-        vis += f'<rect x="{x}" y="{tracks[0][2] + 3}" width="{w - 2}" height="{th - 6}" fill="{YEL}" opacity="{op:.2f}"/>'
-        x += w
-
-    # AUDIO: waveform bars with bursts at clues (height from magnitude)
-    aud, ay = "", tracks[1][2] + th / 2
-    for x in range(tx0, tx1, 3):
-        h = rnd.uniform(1, 5)
-        for p, r in zip(cx, readings):
-            d = abs(x - p)
-            if d < 26:
-                h += r["magnitude"] * 1.3 * (1 - d / 26) * rnd.uniform(.6, 1)
-        h = min(h, th / 2 - 1)
-        aud += f'<line x1="{x}" y1="{ay - h:.1f}" x2="{x}" y2="{ay + h:.1f}"/>'
-
-    # THERMAL: heat gradient, hot spots at clues
-    stops = []
-    for i in range(41):
-        f = i / 40
-        x = tx0 + f * (tx1 - tx0)
-        heat = .18 + rnd.uniform(0, .12) + sum(max(0, 1 - abs(x - p) / 40) for p in cx)
-        heat = min(heat, 1)
-        col = "#2a0f2e" if heat < .3 else ("#7a1450" if heat < .5 else (PINK if heat < .8 else "#ffb35a"))
-        stops.append(f'<stop offset="{f:.3f}" stop-color="{col}"/>')
-
-    # clues: marker through all tracks + label (alternating above / below)
+    # clue labels, alternating above / below the trace
     clues = ""
-    for i, (p, r) in enumerate(zip(cx, readings)):
+    for i, ((px, py), r) in enumerate(zip(peaks, readings)):
         top = i % 2 == 0
-        ly = 40 if top else 196
-        tx, anc = p + 6, "start"
-        y_from = 86 if top else 166
-        y_to = 58 if top else 182
+        ly = 44 if top else 192
+        lead_from, lead_to = (py - 4, 70) if top else (y0 + 16, 176)
         clues += (
-            f'<line x1="{p:.0f}" y1="88" x2="{p:.0f}" y2="168" stroke="#fff6ea" stroke-width="1" stroke-opacity=".75"/>'
-            f'<rect class="pulse" x="{p - 11:.0f}" y="{tracks[i % 3][2] - 1}" width="22" height="{th + 2}" fill="none" '
-            f'stroke="{YEL}" stroke-width="1.2" style="animation-delay:{i * .5:.1f}s"/>'
-            f'<line x1="{p:.0f}" y1="{y_from}" x2="{p:.0f}" y2="{y_to}" stroke="#fff6ea" stroke-opacity=".5" stroke-dasharray="2 2"/>'
-            f'<path d="M{p:.0f},{y_to - 4} l4,4 l-4,4 l-4,-4 z" fill="{YEL}"/>'
-            f'<text x="{tx:.0f}" y="{ly}" text-anchor="{anc}" font-family="{MONO}" font-size="8.5" fill="{CYAN}" letter-spacing="1.3">'
+            f'<line x1="{px}" y1="{lead_from:.0f}" x2="{px}" y2="{lead_to}" stroke="#fff6ea" stroke-opacity=".3" stroke-dasharray="2 3"/>'
+            f'<circle cx="{px}" cy="{py:.0f}" r="2.4" fill="{YEL}" class="pulse" style="animation-delay:{i * .45:.2f}s"/>'
+            f'<text x="{px - 4}" y="{ly}" font-family="{MONO}" font-size="8.5" fill="{CYAN}" letter-spacing="1.3" opacity=".85">'
             f'CLUE {i + 1:02d} · {escape(r["label"]).upper()}</text>'
-            f'<text x="{tx:.0f}" y="{ly + 17}" text-anchor="{anc}" font-family="{MONO}" font-size="13" font-weight="700" fill="#fff6ea">'
+            f'<text x="{px - 4}" y="{ly + 17}" font-family="{MONO}" font-size="12.5" font-weight="700" fill="#fff6ea">'
             f'{escape(r["value"])}</text>')
 
-    # track labels
-    tl = "".join(
-        f'<rect x="16" y="{y}" width="{tx0 - 24}" height="{th}" fill="#16111f"/>'
-        f'<rect x="16" y="{y}" width="3" height="{th}" fill="{col}"/>'
-        f'<text x="26" y="{y + 14.5}" font-family="{MONO}" font-size="9" fill="{col}" letter-spacing="1.4">{name}</text>'
-        for name, col, y in tracks)
+    # faint timecode ticks under the trace
+    ticks = "".join(
+        f'<line x1="{x}" y1="{y0 + 30}" x2="{x}" y2="{y0 + (36 if k % 5 == 0 else 33)}" stroke="#fff6ea" stroke-opacity="{.3 if k % 5 == 0 else .12}"/>'
+        for k, x in enumerate(range(24, 600, 12)))
 
-    # the moon at the end of the recording, two tiny anonymous figures sitting on it
-    mx, my, mr = 764, 128, 46
-    craters = "".join(f'<circle cx="{mx + dx}" cy="{my + dy}" r="{r}" fill="#cfc8b8" opacity=".55"/>'
-                      for dx, dy, r in [(-14, -10, 7), (12, 8, 9), (-6, 20, 4), (20, -18, 3.5), (-24, 10, 3)])
-    fig = lambda x, y, s: (
-        f'<g transform="translate({x} {y}) scale({s})" fill="{INK}">'
-        f'<circle cx="0" cy="-11" r="2.6"/><path d="M-2.4,-8 h4.8 l.8,7 h-6.4 z"/>'
-        f'<path d="M-3.2,-1.2 h7 l1.6,4.6 h-2.2 l-1.2,-2.6 h-5.2 z"/></g>')
-    moon = (f'<circle cx="{mx}" cy="{my}" r="{mr + 14}" fill="url(#halo)"/>'
-            f'<circle cx="{mx}" cy="{my}" r="{mr}" fill="#efe9da"/>{craters}'
-            f'{fig(mx - 6, my - mr + 2, 1)}{fig(mx + 6, my - mr + 2.5, .95)}'
-            f'<text x="{mx}" y="{my - mr - 24}" text-anchor="middle" font-family="{MONO}" font-size="8" fill="#fff6ea" '
-            f'opacity=".55" letter-spacing="1.6">END OF RECORDING</text>')
+    # moon
+    craters = "".join(f'<circle cx="{mx + dx}" cy="{my + dy}" r="{r}" fill="#c9c0ae" opacity=".45"/>'
+                      for dx, dy, r in [(-20, -6, 10), (18, 14, 13), (-8, 30, 5), (26, -24, 5), (-34, 18, 4), (4, -2, 3)])
+    # two tiny figures seen from behind, sitting on the rim
+    seat = my - mr + 1
+    legs = ''
+    him = (f'<g transform="translate({mx - 6} {seat + .8}) rotate(-7) scale(1.7)">{legs}'
+           f'<path d="M-2.7,-9.6 h5.4 l1.1,9.8 q-3.8,1 -7.6,0 z" fill="{YEL}"/>'
+           f'<path d="M-2.7,-9.6 h5.4 l.15,1.4 h-5.7 z" fill="#c9b800"/>'
+           f'<g fill="{PINK}" stroke="{PINK}" stroke-width="1" stroke-linejoin="round" opacity=".75"><circle cx="0" cy="-12.2" r="2.6"/><path d="M-2.9,-12.6 l.9,-3.1 l1.1,1.5 l.9,-2.3 l1,2 l1.2,-1.6 l.7,3.5 z"/></g>'
+           f'<g fill="#241c30"><circle cx="0" cy="-12.2" r="2.6"/><path d="M-2.9,-12.6 l.9,-3.1 l1.1,1.5 l.9,-2.3 l1,2 l1.2,-1.6 l.7,3.5 z"/></g></g>')
+    her = (f'<g transform="translate({mx + 6} {seat + .6}) rotate(8) scale(1.6)">{legs}'
+           f'<path d="M-2.4,-9.4 h4.8 l1,9.6 q-3.4,.9 -6.8,0 z" fill="#1b1630"/>'
+           f'<path d="M-.4,-9.4 h.8 v9.6 h-.8 z" fill="{CYAN}" opacity=".9"/>'
+           f'<path d="M-3.3,-9.8 Q-3.8,-16 0,-15.6 Q3.8,-16 3.3,-9.8 Q0,-10.8 -3.3,-9.8 z" fill="#ece6ff"/></g>')
+    moon = (f'<circle cx="{mx}" cy="{my}" r="{mr + 46}" fill="url(#halo)" class="breathe"/>'
+            f'<circle cx="{mx}" cy="{my}" r="{mr}" fill="url(#moonfill)"/>{craters}'
+            f'<circle cx="{mx}" cy="{my}" r="{mr}" fill="none" stroke="{PINK}" stroke-opacity=".35" stroke-width="1.5"/>'
+            f'{him}{her}'
+            f'<text x="{mx}" y="{my + mr + 24}" text-anchor="middle" font-family="{MONO}" font-size="8.5" fill="#fff6ea" '
+            f'opacity=".6" letter-spacing="2">EOF · TO THE MOON</text>')
 
-    stars = "".join(f'<circle cx="{rnd.uniform(706, 830):.0f}" cy="{rnd.uniform(36, 210):.0f}" r="{rnd.choice([.6, .8, 1])}" '
-                    f'fill="#fff6ea" class="tw" style="animation-delay:{rnd.uniform(0, 3):.1f}s"/>' for _ in range(22))
+    stars = "".join(f'<circle cx="{rnd.uniform(20, W - 20):.0f}" cy="{rnd.uniform(36, H - 30):.0f}" r="{rnd.choice([.5, .7, .9])}" '
+                    f'fill="#fff6ea" class="tw" style="animation-delay:{rnd.uniform(0, 3):.1f}s"/>' for _ in range(40))
 
-    scrub = tx1 - tx0
-    return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" role="img" aria-label="Braindance editor timeline">
+    return f'''<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}" role="img" aria-label="Braindance recording: a vitals trace with four clues, ending at the moon">
 <style>
-.ph{{animation:ph 9s linear infinite}}
-@keyframes ph{{from{{transform:translateX(0)}}to{{transform:translateX({scrub}px)}}}}
+.comet{{stroke-dasharray:70 {L:.0f};animation:comet 6s linear infinite}}
+@keyframes comet{{from{{stroke-dashoffset:70}}to{{stroke-dashoffset:-{L:.0f}}}}}
 .pulse{{animation:pulse 2s ease-in-out infinite}}
-@keyframes pulse{{0%,100%{{opacity:.25}}50%{{opacity:1}}}}
+@keyframes pulse{{0%,100%{{opacity:.35}}50%{{opacity:1}}}}
 .rec{{animation:rec 1.2s steps(2) infinite}}
 @keyframes rec{{50%{{opacity:.15}}}}
 .tw{{animation:tw 3s ease-in-out infinite}}
-@keyframes tw{{0%,100%{{opacity:.2}}50%{{opacity:.9}}}}
-.wave{{animation:wave 1.6s ease-in-out infinite alternate;transform-origin:0 {ay}px}}
-@keyframes wave{{to{{transform:scaleY(.7)}}}}
-@media (prefers-reduced-motion:reduce){{*{{animation:none!important}}}}
+@keyframes tw{{0%,100%{{opacity:.15}}50%{{opacity:.8}}}}
+.breathe{{animation:breathe 5s ease-in-out infinite;transform-origin:{mx}px {my}px}}
+@keyframes breathe{{0%,100%{{opacity:.7;transform:scale(1)}}50%{{opacity:1;transform:scale(1.05)}}}}
+@media (prefers-reduced-motion:reduce){{*{{animation:none!important}}.comet{{stroke-dasharray:none;opacity:0}}}}
 </style>
 <defs>
 <clipPath id="f"><path d="M0,0 H{W - 22} L{W},22 V{H} H22 L0,{H - 22} Z"/></clipPath>
-<linearGradient id="heat" x1="{tx0}" y1="0" x2="{tx1}" y2="0" gradientUnits="userSpaceOnUse">{"".join(stops)}</linearGradient>
-<radialGradient id="halo"><stop offset=".7" stop-color="#fff6ea" stop-opacity=".18"/><stop offset="1" stop-color="#fff6ea" stop-opacity="0"/></radialGradient>
-<pattern id="scan" width="4" height="3" patternUnits="userSpaceOnUse"><rect width="4" height="1" fill="#000" opacity=".3"/></pattern>
+<radialGradient id="halo"><stop offset=".55" stop-color="{PINK}" stop-opacity=".22"/><stop offset=".8" stop-color="{PINK}" stop-opacity=".06"/><stop offset="1" stop-color="{PINK}" stop-opacity="0"/></radialGradient>
+<radialGradient id="moonfill" cx=".38" cy=".35" r=".75"><stop offset="0" stop-color="#fffaf0"/><stop offset=".7" stop-color="#e8e0cf"/><stop offset="1" stop-color="#cfc4b0"/></radialGradient>
+<linearGradient id="fadein" x1="24" y1="0" x2="600" y2="0" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="{CYAN}" stop-opacity=".15"/><stop offset=".12" stop-color="{CYAN}" stop-opacity=".8"/><stop offset="1" stop-color="{CYAN}"/></linearGradient>
+<filter id="glow" x="-10%" y="-50%" width="120%" height="200%"><feGaussianBlur stdDeviation="2.4" result="b"/><feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge></filter>
 </defs>
 <g clip-path="url(#f)">
 <rect width="{W}" height="{H}" fill="{BG}"/>
-<rect x="698" y="28" width="{W - 698}" height="{H - 28}" fill="#0f0b1a"/>
 {stars}
 <rect width="{W}" height="28" fill="#16111f"/>
-<rect y="27" width="{W}" height="1" fill="{CYAN}" opacity=".5"/>
+<rect y="27" width="{W}" height="1" fill="{CYAN}" opacity=".35"/>
 <circle class="rec" cx="20" cy="14" r="4" fill="{PINK}"/>
-<text x="32" y="18" font-family="{MONO}" font-size="10" fill="{YEL}" letter-spacing="2">BD EDITOR · REC_{escape(c['username']).upper()}.bd</text>
-<text x="{W - 16}" y="18" text-anchor="end" font-family="{MONO}" font-size="10" fill="#fff6ea" opacity=".6" letter-spacing="2">EDIT MODE · LAYERS 3/3 · 4 CLUES FOUND</text>
-{ruler}
-{tl}
-<rect x="{tx0}" y="{tracks[0][2]}" width="{tx1 - tx0}" height="{th}" fill="#16111f"/>{vis}
-<rect x="{tx0}" y="{tracks[1][2]}" width="{tx1 - tx0}" height="{th}" fill="#16111f"/>
-<g class="wave" stroke="{CYAN}" stroke-width="1.6" stroke-linecap="round">{aud}</g>
-<rect x="{tx0}" y="{tracks[2][2]}" width="{tx1 - tx0}" height="{th}" fill="url(#heat)"/>
-{clues}
-<g class="ph">
-<line x1="{tx0}" y1="84" x2="{tx0}" y2="168" stroke="{YEL}" stroke-width="1.6"/>
-<path d="M{tx0 - 5},80 h10 v4 l-5,5 l-5,-5 z" fill="{YEL}"/>
-</g>
+<text x="32" y="18" font-family="{MONO}" font-size="10" fill="{YEL}" letter-spacing="2">BD PLAYBACK · REC_{escape(c['username']).upper()}.bd</text>
+<text x="{W - 16}" y="18" text-anchor="end" font-family="{MONO}" font-size="10" fill="#fff6ea" opacity=".55" letter-spacing="2">VITALS: STABLE-ISH · 4 CLUES</text>
+{ticks}
 {moon}
-<text x="16" y="{H - 10}" font-family="{MONO}" font-size="9" fill="#fff6ea" opacity=".45" letter-spacing="1.6">◂◂  ▶  ▸▸   SPEED 1.0x   ·   SCAN MODE: ON</text>
-<rect width="{W}" height="{H}" fill="url(#scan)"/>
+<polyline points="{tp}" fill="none" stroke="url(#fadein)" stroke-width="1.5" stroke-linejoin="round" opacity=".85"/>
+<polyline class="comet" points="{tp}" fill="none" stroke="#e9fdff" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round" filter="url(#glow)"/>
+{clues}
+<text x="24" y="{H - 10}" font-family="{MONO}" font-size="9" fill="#fff6ea" opacity=".35" letter-spacing="1.6">◂◂  ▶  ▸▸   00:47:12   ·   SPEED 1.0x</text>
 </g>
-<path d="M0,0 H{W - 22} L{W},22 V{H} H22 L0,{H - 22} Z" fill="none" stroke="{CYAN}" stroke-opacity=".45" stroke-width="2"/>
+<path d="M0,0 H{W - 22} L{W},22 V{H} H22 L0,{H - 22} Z" fill="none" stroke="{CYAN}" stroke-opacity=".4" stroke-width="2"/>
 </svg>'''
 
 
@@ -351,7 +321,7 @@ def build_readme(c):
 </p>
 
 <p align="center">
-  <img src="./assets/braindance.svg" width="100%" alt="Braindance editor timeline. Clues: {readings}">
+  <img src="./assets/braindance.svg" width="100%" alt="Braindance recording ending at the moon. Clues: {readings}">
 </p>
 
 <p align="center"><sub><code>// END OF TRANSMISSION</code> · jack into the repos below ↓</sub></p>
